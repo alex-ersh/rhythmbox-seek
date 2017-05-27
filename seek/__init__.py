@@ -3,7 +3,7 @@
 # shortcuts) to seek forward (10 secs) / backward (5 secs)
 # in the currently playing track.
 #
-# VERSION 1.0
+# VERSION 2.0
 #
 
 # Copyright 2013 Cathal Garvey. http://cgarvey.ie/
