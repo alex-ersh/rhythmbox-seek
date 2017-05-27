@@ -55,6 +55,12 @@ class TrackSeekPlugin(GObject.Object, Peas.Activatable):
         app.add_plugin_menu_item("tools", "tools" + action_name, item)
         app.set_accels_for_action("win." + action_name, [accel])
 
+    def remove_action(self, action_name):
+        app = Gio.Application.get_default()
+        app.set_accels_for_action("win." + action_name, [])
+        app.remove_plugin_menu_item("tools", "tools" + action_name)
+        self.object.props.window.remove_action(action_name)
+
     def do_activate(self):
         print("Activating Plugin")
         self.add_action(self.bwd_action_name, self.bwd_menu_name,
@@ -95,10 +101,6 @@ class TrackSeekPlugin(GObject.Object, Peas.Activatable):
 
     def do_deactivate(self):
         print("De-activating Plugin")
-        app = Gio.Application.get_default()
-        app.set_accels_for_action("win." + self.fwd_action_name, [])
-        app.set_accels_for_action("win." + self.bwd_action_name, [])
-        app.remove_plugin_menu_item("tools", "tools" + self.fwd_action_name)
-        app.remove_plugin_menu_item("tools", "tools" + self.bwd_action_name)
-        self.object.props.window.remove_action(self.fwd_action_name)
-        self.object.props.window.remove_action(self.bwd_action_name)
+        self.remove_action(self.fwd_action_name)
+        self.remove_action(self.bwd_action_name)
+
