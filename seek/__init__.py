@@ -22,76 +22,83 @@
 
 
 from gi.repository import GObject, RB, Peas
-from gi.repository import Gtk
+from gi.repository import Gtk, Gio, GLib, Gdk
 
-ui_menu_action = """
-<ui>
-	<menubar name="MenuBar">
-		<menu name="ControlMenu" action="Control">
-			<separator />
-			<menuitem name="SeekPluginBackward" action="SeekPluginBackward" />
-			<menuitem name="SeekPluginForward" action="SeekPluginForward" />
-		</menu>
-	</menubar>
-</ui>
-"""
 
-seek_backward_time = 5
-seek_forward_time = 10
+SEEK_BACKWARD_TIME = 5
+SEEK_FORWARD_TIME = 10
 
-class TrackSeekPlugin( GObject.Object, Peas.Activatable ):
-	object = GObject.property( type=GObject.Object )
 
-	def __init__(self):
-		super( TrackSeekPlugin, self ).__init__()
+class TrackSeekPlugin(GObject.Object, Peas.Activatable):
+    object = GObject.Property(type=GObject.Object)
 
-	def do_activate(self):
-		print "Activating Plugin\n"
+    def __init__(self):
+        super(TrackSeekPlugin, self).__init__()
+        self.fwd_action_name = "SeekPluginForward"
+        self.fwd_menu_name = "Seek _Forward"
+        self.fwd_accel = "<shift>Right"
+        self.bwd_action_name = "SeekPluginBackward"
+        self.bwd_menu_name = "Seek _Backward"
+        self.bwd_accel = "<shift>Left"
 
-		shell = self.object
+    def add_action(self, action_name, menu_name, accel, func):
+        action = Gio.SimpleAction.new(action_name, None)
+        action.connect("activate", func)
+        self.object.props.window.add_action(action)
 
-		action_group = Gtk.ActionGroup( 'SeekPluginActionGroup' )
+        item = Gio.MenuItem()
+        item.set_detailed_action("win." + action_name)
+        item.set_label(menu_name)
+        item.set_attribute_value("accel", GLib.Variant("s", accel))
 
-		action = Gtk.Action( 'SeekPluginBackward', _('Seek _Backward'), _('Seek backward, in current track, by 5 seconds.'), "" )
-		action.connect( 'activate', self.on_skip_backward, shell )
-		action_group.add_action_with_accel( action, "<Control>Left" )
+        app = Gio.Application.get_default()
+        app.add_plugin_menu_item("tools", "tools" + action_name, item)
+        app.set_accels_for_action("win." + action_name, [accel])
 
-		action = Gtk.Action( 'SeekPluginForward', _('Seek _Forward'), _('Seek forward, in current track, by 10 seconds.'), "" )
-		action.connect( 'activate', self.on_skip_forward, shell )
-		action_group.add_action_with_accel( action, "<Control>Right" )
+    def do_activate(self):
+        print("Activating Plugin")
+        self.add_action(self.bwd_action_name, self.bwd_menu_name,
+                        self.bwd_accel, self.on_skip_backward)
+        self.add_action(self.fwd_action_name, self.fwd_menu_name,
+                        self.fwd_accel, self.on_skip_forward)
 
-		shell.props.ui_manager.insert_action_group( action_group )
-		shell.props.ui_manager.add_ui_from_string (ui_menu_action)
-		
-	def on_skip_backward( self, *args ):
-		print "Seeking backward\n"
-		sp = self.object.props.shell_player
+    def on_skip_backward(self, *args):
+        print("Seeking backward")
+        sp = self.object.props.shell_player
 
-		if( sp.get_playing()[1] ):
-			seek_time = sp.get_playing_time()[1] - seek_backward_time
-			if( seek_time < 0 ): seek_time = 0
+        if sp.get_playing()[1]:
+            seek_time = sp.get_playing_time()[1] - SEEK_BACKWARD_TIME
+            if seek_time < 0:
+                seek_time = 0
 
-			print "Seeking backward to %d sec(s)\n" % seek_time
-			sp.set_playing_time( seek_time )
-			print "Done.\n";
-		else: print "Not playing, refusing to seek backward\n"
+            print("Seeking backward to {0} sec(s)".format(seek_time))
+            sp.set_playing_time(seek_time)
+            print("Done.")
+        else: print("Not playing, refusing to seek backward")
 
-	def on_skip_forward( self, *args ):
-		print "Seeking forward\n"
-		sp = self.object.props.shell_player
+    def on_skip_forward(self, *args):
+        print("Seeking forward")
+        sp = self.object.props.shell_player
 
-		if( sp.get_playing()[1] ):
-			seek_time = sp.get_playing_time()[1] + seek_forward_time
-			song_duration = sp.get_playing_song_duration()
-			if( song_duration > 0 ): #sanity check
-				if( seek_time > song_duration ): seek_time = song_duration
-			
-				print "Seeking forward to %d sec(s)\n" % seek_time
-				sp.set_playing_time( seek_time )
-				print "Done.\n";
-			else: print "Song duration is reported as 0. Refusing to seek!\n"
-		else: print "Not playing, refusing to seek forward\n"
-		
-	def do_deactivate(self):
-		print "De-activating Plugin\n"
+        if sp.get_playing()[1]:
+            seek_time = sp.get_playing_time()[1] + SEEK_FORWARD_TIME
+            song_duration = sp.get_playing_song_duration()
+            if song_duration > 0: #sanity check
+                if seek_time > song_duration:
+                    seek_time = song_duration
 
+                print("Seeking forward to {0} sec(s)".format(seek_time))
+                sp.set_playing_time(seek_time)
+                print("Done.")
+            else: print("Song duration is reported as 0. Refusing to seek!")
+        else: print("Not playing, refusing to seek forward")
+
+    def do_deactivate(self):
+        print("De-activating Plugin")
+        app = Gio.Application.get_default()
+        app.set_accels_for_action("win." + self.fwd_action_name, [])
+        app.set_accels_for_action("win." + self.bwd_action_name, [])
+        app.remove_plugin_menu_item("tools", "tools" + self.fwd_action_name)
+        app.remove_plugin_menu_item("tools", "tools" + self.bwd_action_name)
+        self.object.props.window.remove_action(self.fwd_action_name)
+        self.object.props.window.remove_action(self.bwd_action_name)
